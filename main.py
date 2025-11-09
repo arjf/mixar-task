@@ -14,8 +14,8 @@ lg = log.getLogger("main")
 lg.setLevel(log.DEBUG)
 
 fmt = log.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-
-timestamp = datetime.datetime.now().strftime(r"%d.%m.%y_%H.%M.%S")
+tm_fmt = r"%d.%m.%y_%H.%M.%S"
+timestamp = datetime.datetime.now().strftime(tm_fmt)
 
 fh = log.FileHandler(f'logs/Main.py - {timestamp}.log')
 fh.setLevel(log.DEBUG)
@@ -132,7 +132,7 @@ def process_mesh(mesh: tri.Geometry, base_bins: int = 1024) -> tri.Geometry:
     lg.info("Quantization: calculated quantized verts")
     
     # dequantize
-    dequantized_vertices_minmax = np.zeros_like(quantized_vertices, dtype=np.float64)
+    dequantized_vertices_minmax = np.zeros_like(quantized_vertices, dtype=np.float32)
     for axis in range(3):
         bins_for_axis = bin_counts[:, axis]
         denominator = np.maximum(bins_for_axis-1, 1)
@@ -172,13 +172,61 @@ def density_map_based_quant(all_leaf_nodes):
         density_map.append((density, leaf))
     all_scores = [score for score, _ in density_map]
     return all_scores
-# %%
+
+def rmse(mesh1:tri.caching.TrackedArray, mesh2:tri.caching.TrackedArray):
+    vert1 = mesh1.vertices
+    vert2 = mesh2.vertices
+    if vert1.shape != vert2.shape:
+        raise ValueError("Vertex arrays must have the same shape.")
+    error_vectors = vert1 - vert2
+    squared_distances = np.sum(error_vectors**2, axis=1)
+    ms_distance = np.mean(squared_distances)
+    rmse = np.sqrt(ms_distance)
+    return rmse
+
+def mse(mesh1:tri.caching.TrackedArray, mesh2:tri.caching.TrackedArray):
+    vert1 = mesh1.vertices
+    vert2 = mesh2.vertices
+    if vert1.shape != vert2.shape:
+        raise ValueError("Vertex arrays must have the same shape.")
+    error_vectors = vert1 - vert2
+    squared_distances = np.sum(error_vectors**2, axis=1)
+    ms_distance = np.mean(squared_distances)
+    return ms_distance
+
+def mae(mesh1:tri.caching.TrackedArray, mesh2:tri.caching.TrackedArray):
+    vert1 = mesh1.vertices
+    vert2 = mesh2.vertices
+    if vert1.shape != vert2.shape:
+        raise ValueError("Vertex arrays must have the same shape.")
+    error_vectors = vert1 - vert2
+    squared_distances = np.sum(error_vectors**2, axis=1)
+    distances = np.sqrt(squared_distances)
+    m_distance = np.mean(distances)
+    return m_distance
+
+def export(mesh:tri.caching.TrackedArray, target, nick="processed", path="./exports"):
+    if not os.path.exists(path): os.mkdir(path)
+    ts = datetime.datetime.now().strftime(tm_fmt)
+    fh = f"exports/{nick}_{target}_{ts}.obj"
+    mesh.export(fh)
+    lg.info(f"Successfully exported {nick} mesh to: {fh}")
+
 
 # %%
-processed, normalized, *quant_params = process_mesh(load_mesh(samplepath("talwar")))
+target = "talwar"
+original = load_mesh(samplepath(target))
+export(original, target, nick="original_trimesh")
+processed, normalized, *quant_params = process_mesh(original)
 
-normalized.visual.face_colors = [0, 255, 0]  # Green
-processed.visual.face_colors = [255, 0, 0]    # Red
+lg.info(f"The calculated RMSE: {rmse(normalized, processed)}")
+lg.info(f"The calculated MAE: {mae(normalized, processed)}")
+lg.info(f"The calculated MSE: {mse(normalized, processed)}")
+export(normalized, target, "normalized")
+export(processed, target)
+processed.merge_vertices()
+export(processed, target, "processed_merged_vertices")
+
 translation_amount = 2.2
 processed.apply_translation([translation_amount, 0, 0])
 lg.info(f"Moving processed mesh by {translation_amount:.2f} units for viewing.")
@@ -188,9 +236,5 @@ scene.add_geometry(normalized)
 scene.add_geometry(processed)
 scene.show()
 
-#%%
 
-# # %%
-# kdt = tri.points.PointCloud(load_mesh(samplepath("talwar")).vertices).kdtree
-# kdt[0]
-# %%
+#%%
