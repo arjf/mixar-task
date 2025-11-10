@@ -282,15 +282,16 @@ class MeshProcessor:
         return metrics
     
     @staticmethod
-    def export(mesh:tri.caching.TrackedArray, target, nick="processed", path="./exports"):
+    def export(mesh:tri.caching.TrackedArray, target, nick="processed", path="./exports", appened_time:bool = True):
         if not os.path.exists(path): os.mkdir(path)
         ts = datetime.datetime.now().strftime(tm_fmt)
-        fh = f"exports/{nick}_{target}_{ts}.obj"
+        if appened_time: fh = f"{path}/{nick}_{target}_{ts}.obj"
+        else: fh = f"{path}/{nick}_{target}.obj"
         mesh.export(fh)
         lg.info(f"Successfully exported {nick} mesh to: {fh}")
     
     @staticmethod
-    def get_stats(vertices: np.ndarray) -> dict:
+    def get_stats(vertices: tri.caching.TrackedArray) -> dict:
         stats = {
             "Number of Vertices": vertices.shape[0],
             "Min (x, y, z)": vertices.min(axis=0),
